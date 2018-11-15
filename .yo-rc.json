@@ -1,0 +1,37 @@
+{
+  "generator-jhipster": {
+    "promptValues": {
+      "packageName": "com.medblock",
+      "nativeLanguage": "en"
+    },
+    "jhipsterVersion": "5.5.0",
+    "applicationType": "monolith",
+    "baseName": "medblock",
+    "packageName": "com.medblock",
+    "packageFolder": "com/medblock",
+    "serverPort": "8080",
+    "authenticationType": "jwt",
+    "cacheProvider": "ehcache",
+    "enableHibernateCache": false,
+    "websocket": "spring-websocket",
+    "databaseType": "mongodb",
+    "devDatabaseType": "mongodb",
+    "prodDatabaseType": "mongodb",
+    "searchEngine": false,
+    "messageBroker": false,
+    "serviceDiscoveryType": false,
+    "buildTool": "maven",
+    "enableSwaggerCodegen": false,
+    "jwtSecretKey": "YTgwMzdkZjMyMjI1NDI0NzFkYjJiODM4YjQxMDMzZjhlMWZiYzUzNWU1ZjBkNzE5YzIwMDg1N2IzYjRjOGY3MWM3N2JiYTY3MmM4YTRiZjhiZWVjYWQ3YmI0ZDM5NmU2NDczNmQyYWZjYmRjYWZiZjRlMDI4NDBhZWEwMzA0MmM=",
+    "clientFramework": "angularX",
+    "useSass": true,
+    "clientPackageManager": "npm",
+    "testFrameworks": [],
+    "jhiPrefix": "jhi",
+    "enableTranslation": true,
+    "nativeLanguage": "en",
+    "languages": [
+      "en"
+    ]
+  }
+}
