@@ -15,8 +15,12 @@ import com.medblock.web.rest.util.PaginationUtil;
 import com.codahale.metrics.annotation.Timed;
 import io.github.jhipster.web.util.ResponseUtil;
 
+import io.ipfs.api.IPFS;
+import io.ipfs.api.MerkleNode;
+import io.ipfs.api.NamedStreamable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
@@ -24,8 +28,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.mail.Multipart;
 import javax.validation.Valid;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
@@ -65,6 +72,9 @@ public class UserResource {
     private final UserRepository userRepository;
 
     private final MailService mailService;
+
+    @Autowired
+    private IPFS ipfs;
 
     public UserResource(UserService userService, UserRepository userRepository, MailService mailService) {
 
@@ -186,5 +196,13 @@ public class UserResource {
         log.debug("REST request to delete User: {}", login);
         userService.deleteUser(login);
         return ResponseEntity.ok().headers(HeaderUtil.createAlert( "userManagement.deleted", login)).build();
+    }
+
+    @PostMapping("/user/upload-file")
+    public String putByte(@RequestPart MultipartFile file) throws IOException {
+        NamedStreamable.ByteArrayWrapper fileWrapper = new NamedStreamable.ByteArrayWrapper(file.getBytes());//"hello.txt", "G'day world! IPFS rocks!".getBytes()
+        MerkleNode addResult = ipfs.add(fileWrapper).get(0);
+        log.info("IpfsService put() result: " + addResult.toJSONString());
+        return addResult.toJSONString();
     }
 }
