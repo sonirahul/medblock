@@ -2,7 +2,6 @@ package com.medblock.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.medblock.config.Constants;
-import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -21,7 +20,6 @@ import java.util.Set;
  * A user.
  */
 
-@Data
 @org.springframework.data.mongodb.core.mapping.Document(collection = "jhi_user")
 public class User extends AbstractAuditingEntity implements Serializable {
 
@@ -112,4 +110,119 @@ public class User extends AbstractAuditingEntity implements Serializable {
         return Objects.hashCode(getId());
     }
 
+    public String getId() {
+        return this.id;
+    }
+
+    public @NotNull @Pattern(regexp = Constants.LOGIN_REGEX) @Size(min = 1, max = 50) @NotNull @Pattern(regexp = Constants.LOGIN_REGEX) @Size(min = 1, max = 50) String getLogin() {
+        return this.login;
+    }
+
+    public @NotNull @Size(min = 60, max = 60) @NotNull @Size(min = 60, max = 60) String getPassword() {
+        return this.password;
+    }
+
+    public @Size(max = 50) @Size(max = 50) String getFirstName() {
+        return this.firstName;
+    }
+
+    public @Size(max = 50) @Size(max = 50) String getLastName() {
+        return this.lastName;
+    }
+
+    public @Email @Size(min = 5, max = 254) @Email @Size(min = 5, max = 254) String getEmail() {
+        return this.email;
+    }
+
+    public boolean isActivated() {
+        return this.activated;
+    }
+
+    public @Size(min = 2, max = 6) @Size(min = 2, max = 6) String getLangKey() {
+        return this.langKey;
+    }
+
+    public @Size(max = 256) @Size(max = 256) String getImageUrl() {
+        return this.imageUrl;
+    }
+
+    public @Size(max = 20) @Size(max = 20) String getActivationKey() {
+        return this.activationKey;
+    }
+
+    public @Size(max = 20) @Size(max = 20) String getResetKey() {
+        return this.resetKey;
+    }
+
+    public Instant getResetDate() {
+        return this.resetDate;
+    }
+
+    public Set<Authority> getAuthorities() {
+        return this.authorities;
+    }
+
+    public String getPhone() {
+        return this.phone;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public void setLogin(@NotNull @Pattern(regexp = Constants.LOGIN_REGEX) @Size(min = 1, max = 50) @NotNull @Pattern(regexp = Constants.LOGIN_REGEX) @Size(min = 1, max = 50) String login) {
+        this.login = login;
+    }
+
+    public void setPassword(@NotNull @Size(min = 60, max = 60) @NotNull @Size(min = 60, max = 60) String password) {
+        this.password = password;
+    }
+
+    public void setFirstName(@Size(max = 50) @Size(max = 50) String firstName) {
+        this.firstName = firstName;
+    }
+
+    public void setLastName(@Size(max = 50) @Size(max = 50) String lastName) {
+        this.lastName = lastName;
+    }
+
+    public void setEmail(@Email @Size(min = 5, max = 254) @Email @Size(min = 5, max = 254) String email) {
+        this.email = email;
+    }
+
+    public void setActivated(boolean activated) {
+        this.activated = activated;
+    }
+
+    public void setLangKey(@Size(min = 2, max = 6) @Size(min = 2, max = 6) String langKey) {
+        this.langKey = langKey;
+    }
+
+    public void setImageUrl(@Size(max = 256) @Size(max = 256) String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public void setActivationKey(@Size(max = 20) @Size(max = 20) String activationKey) {
+        this.activationKey = activationKey;
+    }
+
+    public void setResetKey(@Size(max = 20) @Size(max = 20) String resetKey) {
+        this.resetKey = resetKey;
+    }
+
+    public void setResetDate(Instant resetDate) {
+        this.resetDate = resetDate;
+    }
+
+    public void setAuthorities(Set<Authority> authorities) {
+        this.authorities = authorities;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String toString() {
+        return "User(id=" + this.getId() + ", login=" + this.getLogin() + ", password=" + this.getPassword() + ", firstName=" + this.getFirstName() + ", lastName=" + this.getLastName() + ", email=" + this.getEmail() + ", activated=" + this.isActivated() + ", langKey=" + this.getLangKey() + ", imageUrl=" + this.getImageUrl() + ", activationKey=" + this.getActivationKey() + ", resetKey=" + this.getResetKey() + ", resetDate=" + this.getResetDate() + ", authorities=" + this.getAuthorities() + ", phone=" + this.getPhone() + ")";
+    }
 }

@@ -1,5 +1,8 @@
 package com.medblock.service;
 
+import com.jcraft.jsch.Channel;
+import com.jcraft.jsch.ChannelExec;
+import com.jcraft.jsch.Session;
 import com.medblock.config.Constants;
 import com.medblock.domain.Authority;
 import com.medblock.domain.User;
@@ -11,8 +14,10 @@ import com.medblock.service.dto.UserDTO;
 import com.medblock.service.util.RandomUtil;
 import com.medblock.web.rest.errors.*;
 
+import com.medblock.web.rest.vm.SignUpVM;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,10 +25,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Base64;
 
 /**
  * Service class for managing users.
@@ -40,6 +48,9 @@ public class UserService {
     private final AuthorityRepository authorityRepository;
 
     private final CacheManager cacheManager;
+
+    @Autowired
+    private Session session;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthorityRepository authorityRepository, CacheManager cacheManager) {
         this.userRepository = userRepository;
@@ -88,7 +99,72 @@ public class UserService {
             });
     }
 
+    public SignUpVM signUp(SignUpVM signUpVM) throws UnsupportedEncodingException {
+
+        String command1="scl enable rh-python36 'python $MED/medblocks.py createuser" +
+            " -n " + signUpVM.getName() +
+            " -p " + signUpVM.getPhone() +
+            " -e " + signUpVM.getEmail() +
+            " -o $MED/" + signUpVM.getName() + ".json'";
+        String returnKey = executeCommand(command1);
+        System.out.println("from python: " + returnKey);
+        byte[] encodedBytes = Base64.getEncoder().encode(returnKey.getBytes());
+        signUpVM.setKey(new String(encodedBytes, "UTF-8"));
+        //byte[] decodedBytes = Base64.getDecoder().decode(signUpVM.getKey());
+        //System.out.println("decodedBytes " + new String(decodedBytes));
+        return signUpVM;
+    }
+
+
+    public boolean login(String key) throws UnsupportedEncodingException {
+
+        String command1="scl enable rh-python36 'python $MED/medblocks.py info -c eyJuYW1lIjogIm1hbmlzaCIsICJwaG9uZSI6ICIxMjM0NTY3ODkiLCAiZW1haWwiOiAiaGVsbG9Ac2RmcyIsICJiaWdjaGFpbiI6IHsicHJpdmF0ZV9rZXkiOiAiODExeGhLWkVRNnJWdkJyM1F1VG53RWdINktvdlNWdlZTVlBzTFhtcHZEbXoiLCAicHVibGljX2tleSI6ICI4cGZ3NVFhajFMZDhWc20yNEJNeloyU3lvWTdSUkxvUjh2YnVYNVptdDkxcyJ9LCAicnNhIjogeyJwcml2YXRlX2tleSI6ICItLS0tLUJFR0lOIFJTQSBQUklWQVRFIEtFWS0tLS0tXG5NSUlDWEFJQkFBS0JnUURndjlKU1ZRcmtFTEdabHlXeFR6NTYrRldkVW1tZ2pPRjhDMmhTY1pBNDZsQnBGaXp3XG56MXJWVlU1bE8wc2tJaWlKSDE2aCtxaXQ3dmttejJGU3VPSkpiOXNFaDUxaXJBbDZucXRLNWFwc0YwZXRMZ3o5XG5NcWkwUVR1aUVzeG83MmJqaUZwTVg4dUhvc24waFhwR3JEVmNnc2hGT0lzYVM0VC9NcmExMWJBQ2p3SURBUUFCXG5Bb0dBUW1jS1dmNzhWOFBDNVZFdDlzUWwvcWtPaW92RjM0U2dQa2tVaW44NUVFZlNlQ253SHpuMGFXRnA1eWpzXG5tNEZvSHBOaEgxUnlyK2tTUGZBNW5mbzRDTks2Y0xDNHRCVG1hY1NQcHJZVytxWUxRQjdSa2U1LytudjJobHA3XG53bWI5clNqUFRWNGsyWE1Jd2p0YnM2ZWRLMXB6TThlN3drNklxcHZrYjh4NU1ha0NRUURyU240RngxL2RNQjNiXG5LeGhXRHdZYXcyT3BvaTdjTkZ0UlBhRy9DRmxPV2xYTnpuNmhkZlNiZnZpMGQzTXcwT0Y2QnNUc3dYUzB5N2xzXG40N3VRZlJLdEFrRUE5SWZPbzZuZVMrMWlLK09UckYzelFPSmtpazRBSkFFRklUYlZwa0F5QlR6SVBTTlFweURlXG5BY0FoMmh1bnQweXlRQ0cxUDFPSGNOaDhWQ3pPU1BETnF3SkJBS004VS8vNFdRYWdLaVp5V0hqa0JXMHQzd2ZCXG56OWJQc0FiRnhtQTlENUF2VmRYcGk2ckNwY2YzSjk0ei9NT0NOdHVzdEpRNGhwb2p1R25WK0x0K09pVUNRRnBNXG5ZRUZOdERvamtmSVZHdTQyejJJeGQrRWV4cXlFOStqNC85Smh1RmI0eUJUVG1xL3MwaTZoVFo3bVFYdk54YkVyXG5BV3crSXpESHNMbkF4ZmhuZS9zQ1FCRnEvUmQzS29hbmQzWkFYSzZYb0lZL1h6bkZlVFgxK3phVjVGendYZzJuXG52N3lhNVBYdnJhRkdKS1RwbWtTUXhlSFh6MUZqVXZxWEI2V0RHZTd2YnE0PVxuLS0tLS1FTkQgUlNBIFBSSVZBVEUgS0VZLS0tLS0iLCAicHVibGljX2tleSI6ICItLS0tLUJFR0lOIFBVQkxJQyBLRVktLS0tLVxuTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FEZ3Y5SlNWUXJrRUxHWmx5V3hUejU2K0ZXZFxuVW1tZ2pPRjhDMmhTY1pBNDZsQnBGaXp3ejFyVlZVNWxPMHNrSWlpSkgxNmgrcWl0N3ZrbXoyRlN1T0pKYjlzRVxuaDUxaXJBbDZucXRLNWFwc0YwZXRMZ3o5TXFpMFFUdWlFc3hvNzJiamlGcE1YOHVIb3NuMGhYcEdyRFZjZ3NoRlxuT0lzYVM0VC9NcmExMWJBQ2p3SURBUUFCXG4tLS0tLUVORCBQVUJMSUMgS0VZLS0tLS0ifX0K'";
+        String returnKey = executeCommand(command1);
+        if (returnKey.equals("1")) {
+            System.out.println("bale bale");
+        } else {
+            System.out.println("booh");
+        }
+        return true;
+    }
+
+    private String executeCommand(String command1) {
+        StringBuffer returnKey = new StringBuffer();
+        try {
+            Channel channel = session.openChannel("exec");
+            ((ChannelExec) channel).setCommand(command1);
+            channel.setInputStream(null);
+            ((ChannelExec) channel).setErrStream(System.err);
+
+            InputStream in = channel.getInputStream();
+            channel.connect();
+            byte[] tmp = new byte[1024];
+            while (true) {
+                while (in.available() > 0) {
+                    int i = in.read(tmp, 0, 1024);
+                    if (i < 0) break;
+                    System.out.print(new String(tmp, 0, i));
+                    returnKey.append(new String(tmp, 0, i));
+                }
+                if (channel.isClosed()) {
+                    System.out.println("exit-status: " + channel.getExitStatus());
+                    break;
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (Exception ee) {
+                }
+            }
+            channel.disconnect();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return returnKey.toString();
+    }
+
     public User registerUser(UserDTO userDTO, String password) {
+
         userRepository.findOneByLogin(userDTO.getLogin().toLowerCase()).ifPresent(existingUser -> {
             boolean removed = removeNonActivatedUser(existingUser);
             if (!removed) {

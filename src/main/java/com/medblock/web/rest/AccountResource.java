@@ -13,6 +13,7 @@ import com.medblock.web.rest.errors.*;
 import com.medblock.web.rest.vm.KeyAndPasswordVM;
 import com.medblock.web.rest.vm.ManagedUserVM;
 
+import com.medblock.web.rest.vm.SignUpVM;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,8 +22,9 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
-
+import com.jcraft.jsch.Session;
 
 /**
  * REST controller for managing the current user's account.
@@ -38,6 +40,8 @@ public class AccountResource {
     private final UserService userService;
 
     private final MailService mailService;
+
+
 
     public AccountResource(UserRepository userRepository, UserService userService, MailService mailService) {
 
@@ -58,11 +62,27 @@ public class AccountResource {
     @Timed
     @ResponseStatus(HttpStatus.CREATED)
     public void registerAccount(@Valid @RequestBody ManagedUserVM managedUserVM) {
-        if (!checkPasswordLength(managedUserVM.getPassword())) {
-            throw new InvalidPasswordException();
-        }
+
         User user = userService.registerUser(managedUserVM, managedUserVM.getPassword());
         mailService.sendActivationEmail(user);
+    }
+
+    @PostMapping("/signup")
+    @Timed
+    @ResponseStatus(HttpStatus.CREATED)
+    public SignUpVM signup(@Valid @RequestBody SignUpVM signUpVM) throws UnsupportedEncodingException {
+
+        return userService.signUp(signUpVM);
+        //mailService.sendActivationEmail(user);
+    }
+
+    @PostMapping("/login")
+    @Timed
+    @ResponseStatus(HttpStatus.OK)
+    public boolean login(@Valid @RequestBody String key) throws UnsupportedEncodingException {
+
+        return userService.login(key);
+        //mailService.sendActivationEmail(user);
     }
 
     /**
