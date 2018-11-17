@@ -324,7 +324,7 @@ public class UserService {
         String command = "scl enable rh-python36 'python $MED/medblocks.py permit" +
             " -as " + permitVM.getFileId() +
             " -c " + permitVM.getKey() +
-            " -p " + permitVM.getPhoneNumber() + "'";
+            " -p " + permitVM.getPhone() + "'";
         Thread.sleep(10000);
         String output = executeCommand(command).trim();
         /*String[] out = output.split("\n");
