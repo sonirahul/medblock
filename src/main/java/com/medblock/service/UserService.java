@@ -2,11 +2,15 @@ package com.medblock.service;
 
 import com.jcraft.jsch.Channel;
 import com.jcraft.jsch.ChannelExec;
+import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import com.medblock.config.Constants;
+import com.medblock.config.FileStorageProperties;
 import com.medblock.domain.Authority;
+import com.medblock.domain.FileAssets;
 import com.medblock.domain.User;
 import com.medblock.repository.AuthorityRepository;
+import com.medblock.repository.FileAssetsRepository;
 import com.medblock.repository.UserRepository;
 import com.medblock.security.AuthoritiesConstants;
 import com.medblock.security.SecurityUtils;
@@ -14,19 +18,29 @@ import com.medblock.service.dto.UserDTO;
 import com.medblock.service.util.RandomUtil;
 import com.medblock.web.rest.errors.*;
 
-import com.medblock.web.rest.vm.SignUpVM;
+import com.medblock.web.rest.vm.*;
+import org.omg.SendingContext.RunTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
+import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -49,14 +63,30 @@ public class UserService {
 
     private final CacheManager cacheManager;
 
+    private final Path fileStorageLocation;
+
+    @Autowired
+    private FileAssetsRepository fileAssetsRepository;
+
     @Autowired
     private Session session;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthorityRepository authorityRepository, CacheManager cacheManager) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                       AuthorityRepository authorityRepository, CacheManager cacheManager,
+                       FileStorageProperties fileStorageProperties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
+
+        this.fileStorageLocation = Paths.get(fileStorageProperties.getUploadDir())
+            .toAbsolutePath().normalize();
+
+        try {
+            Files.createDirectories(this.fileStorageLocation);
+        } catch (Exception ex) {
+            throw new RuntimeException("Could not create the directory where the uploaded files will be stored.", ex);
+        }
     }
 
     public Optional<User> activateRegistration(String key) {
@@ -105,6 +135,7 @@ public class UserService {
             " -n " + signUpVM.getName() +
             " -p " + signUpVM.getPhone() +
             " -e " + signUpVM.getEmail() +
+            " -ut " + signUpVM.getType() +
             " -o $MED/" + signUpVM.getName() + ".json'";
         String returnKey = executeCommand(command1);
         System.out.println("from python: " + returnKey);
@@ -116,16 +147,203 @@ public class UserService {
     }
 
 
-    public boolean login(String key) throws UnsupportedEncodingException {
+    public LoginResponseVM login(String key) {
 
-        String command1="scl enable rh-python36 'python $MED/medblocks.py info -c eyJuYW1lIjogIm1hbmlzaCIsICJwaG9uZSI6ICIxMjM0NTY3ODkiLCAiZW1haWwiOiAiaGVsbG9Ac2RmcyIsICJiaWdjaGFpbiI6IHsicHJpdmF0ZV9rZXkiOiAiODExeGhLWkVRNnJWdkJyM1F1VG53RWdINktvdlNWdlZTVlBzTFhtcHZEbXoiLCAicHVibGljX2tleSI6ICI4cGZ3NVFhajFMZDhWc20yNEJNeloyU3lvWTdSUkxvUjh2YnVYNVptdDkxcyJ9LCAicnNhIjogeyJwcml2YXRlX2tleSI6ICItLS0tLUJFR0lOIFJTQSBQUklWQVRFIEtFWS0tLS0tXG5NSUlDWEFJQkFBS0JnUURndjlKU1ZRcmtFTEdabHlXeFR6NTYrRldkVW1tZ2pPRjhDMmhTY1pBNDZsQnBGaXp3XG56MXJWVlU1bE8wc2tJaWlKSDE2aCtxaXQ3dmttejJGU3VPSkpiOXNFaDUxaXJBbDZucXRLNWFwc0YwZXRMZ3o5XG5NcWkwUVR1aUVzeG83MmJqaUZwTVg4dUhvc24waFhwR3JEVmNnc2hGT0lzYVM0VC9NcmExMWJBQ2p3SURBUUFCXG5Bb0dBUW1jS1dmNzhWOFBDNVZFdDlzUWwvcWtPaW92RjM0U2dQa2tVaW44NUVFZlNlQ253SHpuMGFXRnA1eWpzXG5tNEZvSHBOaEgxUnlyK2tTUGZBNW5mbzRDTks2Y0xDNHRCVG1hY1NQcHJZVytxWUxRQjdSa2U1LytudjJobHA3XG53bWI5clNqUFRWNGsyWE1Jd2p0YnM2ZWRLMXB6TThlN3drNklxcHZrYjh4NU1ha0NRUURyU240RngxL2RNQjNiXG5LeGhXRHdZYXcyT3BvaTdjTkZ0UlBhRy9DRmxPV2xYTnpuNmhkZlNiZnZpMGQzTXcwT0Y2QnNUc3dYUzB5N2xzXG40N3VRZlJLdEFrRUE5SWZPbzZuZVMrMWlLK09UckYzelFPSmtpazRBSkFFRklUYlZwa0F5QlR6SVBTTlFweURlXG5BY0FoMmh1bnQweXlRQ0cxUDFPSGNOaDhWQ3pPU1BETnF3SkJBS004VS8vNFdRYWdLaVp5V0hqa0JXMHQzd2ZCXG56OWJQc0FiRnhtQTlENUF2VmRYcGk2ckNwY2YzSjk0ei9NT0NOdHVzdEpRNGhwb2p1R25WK0x0K09pVUNRRnBNXG5ZRUZOdERvamtmSVZHdTQyejJJeGQrRWV4cXlFOStqNC85Smh1RmI0eUJUVG1xL3MwaTZoVFo3bVFYdk54YkVyXG5BV3crSXpESHNMbkF4ZmhuZS9zQ1FCRnEvUmQzS29hbmQzWkFYSzZYb0lZL1h6bkZlVFgxK3phVjVGendYZzJuXG52N3lhNVBYdnJhRkdKS1RwbWtTUXhlSFh6MUZqVXZxWEI2V0RHZTd2YnE0PVxuLS0tLS1FTkQgUlNBIFBSSVZBVEUgS0VZLS0tLS0iLCAicHVibGljX2tleSI6ICItLS0tLUJFR0lOIFBVQkxJQyBLRVktLS0tLVxuTUlHZk1BMEdDU3FHU0liM0RRRUJBUVVBQTRHTkFEQ0JpUUtCZ1FEZ3Y5SlNWUXJrRUxHWmx5V3hUejU2K0ZXZFxuVW1tZ2pPRjhDMmhTY1pBNDZsQnBGaXp3ejFyVlZVNWxPMHNrSWlpSkgxNmgrcWl0N3ZrbXoyRlN1T0pKYjlzRVxuaDUxaXJBbDZucXRLNWFwc0YwZXRMZ3o5TXFpMFFUdWlFc3hvNzJiamlGcE1YOHVIb3NuMGhYcEdyRFZjZ3NoRlxuT0lzYVM0VC9NcmExMWJBQ2p3SURBUUFCXG4tLS0tLUVORCBQVUJMSUMgS0VZLS0tLS0ifX0K'";
+        String command1="scl enable rh-python36 'python $MED/medblocks.py info -c " +
+            key + "'";
         String returnKey = executeCommand(command1);
-        if (returnKey.equals("1")) {
-            System.out.println("bale bale");
+        LoginResponseVM vm = new LoginResponseVM();
+        if (returnKey.contains("1")) {
+            byte[] decodedBytes = Base64.getDecoder().decode(key);
+            String dkey = new String(decodedBytes);
+            String[] dkeyArr = dkey.split(",");
+            for (String itr : dkeyArr) {
+                System.out.println(itr);
+            }
+
+            if (dkeyArr[3].contains("doctor")) {
+                vm.setType("doctor");
+            } else if (dkeyArr[3].contains("patient")) {
+                vm.setType("patient");
+            } else if (dkeyArr[3].contains("lab")) {
+                vm.setType("lab");
+            }
+
+            String[] phones = dkeyArr[1].split("\"");
+            vm.setPhoneNumber(phones[phones.length-1]);
+            vm.setStatus(true);
+
+            //System.out.println((new String(decodedBytes)));
+            return vm;
         } else {
-            System.out.println("booh");
+            vm.setStatus(false);
+            return vm;
         }
-        return true;
+
+    }
+
+    public List<GetFilesVM> getAllFiles(String key, String phone) throws InterruptedException {
+
+
+        if (StringUtils.isEmpty(phone)) {
+            byte[] decodedBytes = Base64.getDecoder().decode(key);
+            String dkey = new String(decodedBytes);
+            String[] dkeyArr = dkey.split(",");
+            String[] phones = dkeyArr[1].split("\"");
+            phone = phones[phones.length-1];
+        }
+        /*byte[] decodedBytes = Base64.getDecoder().decode(key);
+        String dkey = new String(decodedBytes);
+        String[] dkeyArr = dkey.split(",");
+        String[] phones = dkeyArr[1].split("\"");*/
+        String command = "scl enable rh-python36 'python $MED/medblocks.py list" +
+            " -p " + phone +
+            " -c " + key + "'";
+        Thread.sleep(10000);
+        String output = executeCommand(command);
+        String[] outLines = output.split("\n");
+
+        List<GetFilesVM> list = new ArrayList<>();
+        for (int i =0 ; i < outLines.length ; i++) {
+
+            if(outLines[i].trim().contains("ID")) {
+                GetFilesVM vm = new GetFilesVM();
+                vm.setFileId(outLines[i].trim().replace("ID: ", ""));
+                vm.setFileIpfsHash(outLines[i + 1].trim().replace("IPFS hash: ", ""));
+                vm.setFileName(outLines[i].trim().replace("ID: ", ""));
+                vm.setPermitted(!outLines[i + 4].trim().contains("cannot"));
+                list.add(vm);
+                i = i + 4;
+            }
+        }
+        List<FileAssets> filesFromDB = fileAssetsRepository.findAll();
+        if (!CollectionUtils.isEmpty(list)) {
+            for (GetFilesVM itr: list) {
+
+                for (FileAssets fileAssetsDB : filesFromDB) {
+                    if (fileAssetsDB.getFileId().equals(itr.getFileId())) {
+                        itr.setFileName(fileAssetsDB.getFileName());
+                        break;
+                    }
+                }
+            }
+        }
+        System.out.println(list);
+        return list;
+    }
+
+    public List<GetFilesVM> downLoadFile(String key, String fileId) throws InterruptedException, IOException, JSchException {
+
+
+        String command = "scl enable rh-python36 'python $MED/medblocks.py get" +
+            " -a " + fileId +
+            " -c " + key + "'";
+        Thread.sleep(10000);
+        String output = executeCommand(command);
+        String[] outLines = output.split("\n");
+
+        copyRemoteToLocal("/home/matellio",
+            "/Users/rahul/development/project/blockchain_proj/medblock_java/src/main/webapp/content/downloaded", fileId + ".json");
+        return null;
+    }
+
+    public Resource loadFileAsResource(String fileName) {
+        try {
+            Path filePath = this.fileStorageLocation.resolve(fileName).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+            if(resource.exists()) {
+                return resource;
+            } else {
+                throw new RuntimeException("File not found " + fileName);
+            }
+        } catch (MalformedURLException ex) {
+            throw new RuntimeException("File not found " + fileName, ex);
+        }
+    }
+
+    public String storeFile(MultipartFile file) {
+        // Normalize file name
+        String fileName = StringUtils.cleanPath(file.getOriginalFilename());
+
+        try {
+            // Check if the file's name contains invalid characters
+            if(fileName.contains("..")) {
+                throw new RuntimeException("Sorry! Filename contains invalid path sequence " + fileName);
+            }
+
+            // Copy file to the target location (Replacing existing file with the same name)
+            Path targetLocation = this.fileStorageLocation.resolve(fileName);
+            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+
+            return fileName;
+        } catch (IOException ex) {
+            throw new RuntimeException("Could not store file " + fileName + ". Please try again!", ex);
+        }
+    }
+
+    public AddFileDTO addFile(MultipartFile file, AddFileDTO addFileDTO) throws IOException, JSchException, InterruptedException {
+
+        storeFile(file);
+
+        copyLocalToRemote(this.fileStorageLocation.toString(),
+            "/home/matellio/rahul/medblocks", file.getOriginalFilename());
+
+        String command = "scl enable rh-python36 'python $MED/medblocks.py add /home/matellio/rahul/medblocks/proxy.conf.json" +
+            " -p " + addFileDTO.getPhoneNumber() +
+            " -c " + addFileDTO.getKey() + "'";
+        Thread.sleep(10000);
+        String output = executeCommand(command).trim();
+        String[] out = output.split("\n");
+
+        for (String itr : out) {
+            System.out.println(itr);
+        }
+
+        FileAssets fileAssets = new FileAssets();
+        fileAssets.setFileName(file.getOriginalFilename());
+
+        for (String itr : out) {
+            if (itr.trim().contains("ipfs_hash: ")) {
+                addFileDTO.setFileHashKey(itr.trim().replace("ipfs_hash: ", ""));
+                fileAssets.setFileHashKey(itr.trim().replace("ipfs_hash: ", ""));
+            }
+
+            if (itr.trim().contains("[+] Created: ")) {
+                addFileDTO.setFileId(itr.trim().replace("[+] Created: ", ""));
+                fileAssets.setFileId(itr.trim().replace("[+] Created: ", ""));
+            }
+        }
+
+        fileAssetsRepository.save(fileAssets);
+
+        return addFileDTO;
+    }
+
+    public void permit(PermitVM permitVM) throws InterruptedException {
+
+        String command = "scl enable rh-python36 'python $MED/medblocks.py permit" +
+            " -as " + permitVM.getFileId() +
+            " -c " + permitVM.getKey() +
+            " -p " + permitVM.getPhoneNumber() + "'";
+        Thread.sleep(10000);
+        String output = executeCommand(command).trim();
+        /*String[] out = output.split("\n");
+
+        for (String itr : out) {
+            System.out.println(itr);
+        }
+
+        for (String itr : out) {
+            if (itr.trim().contains("ipfs_hash: ")) {
+                addFileDTO.setFileHashKey(itr.trim().replace("ipfs_hash: ", ""));
+            }
+
+            if (itr.trim().contains("[+] Created: ")) {
+                addFileDTO.setFileId(itr.trim().replace("[+] Created: ", ""));
+            }
+        }*/
+
+        //return null;
     }
 
     private String executeCommand(String command1) {
@@ -144,7 +362,7 @@ public class UserService {
                     int i = in.read(tmp, 0, 1024);
                     if (i < 0) break;
                     System.out.print(new String(tmp, 0, i));
-                    returnKey.append(new String(tmp, 0, i));
+                    returnKey.append(new String(tmp, 0, i)).append("\n");
                 }
                 if (channel.isClosed()) {
                     System.out.println("exit-status: " + channel.getExitStatus());
@@ -161,6 +379,209 @@ public class UserService {
             e.printStackTrace();
         }
         return returnKey.toString();
+    }
+
+    private void copyLocalToRemote(String from, String to, String fileName) throws JSchException, IOException {
+        boolean ptimestamp = true;
+        from = from + File.separator + fileName;
+        //from = fileName;
+
+        // exec 'scp -t rfile' remotely
+        String command = "scp " + (ptimestamp ? "-p" : "") + " -t " + to;
+        Channel channel = session.openChannel("exec");
+        ((ChannelExec) channel).setCommand(command);
+
+        // get I/O streams for remote scp
+        OutputStream out = channel.getOutputStream();
+        InputStream in = channel.getInputStream();
+
+        channel.connect();
+
+        if (checkAck(in) != 0) {
+            System.exit(0);
+        }
+
+        File _lfile = new File(from);
+
+        if (ptimestamp) {
+            command = "T" + (_lfile.lastModified() / 1000) + " 0";
+            // The access time should be sent here,
+            // but it is not accessible with JavaAPI ;-<
+            command += (" " + (_lfile.lastModified() / 1000) + " 0\n");
+            out.write(command.getBytes());
+            out.flush();
+            if (checkAck(in) != 0) {
+                System.exit(0);
+            }
+        }
+
+        // send "C0644 filesize filename", where filename should not include '/'
+        long filesize = _lfile.length();
+        command = "C0644 " + filesize + " ";
+        if (from.lastIndexOf('/') > 0) {
+            command += from.substring(from.lastIndexOf('/') + 1);
+        } else {
+            command += from;
+        }
+
+        command += "\n";
+        out.write(command.getBytes());
+        out.flush();
+
+        if (checkAck(in) != 0) {
+            System.exit(0);
+        }
+
+        // send a content of lfile
+        FileInputStream fis = new FileInputStream(from);
+        byte[] buf = new byte[1024];
+        while (true) {
+            int len = fis.read(buf, 0, buf.length);
+            if (len <= 0) break;
+            out.write(buf, 0, len); //out.flush();
+        }
+
+        // send '\0'
+        buf[0] = 0;
+        out.write(buf, 0, 1);
+        out.flush();
+
+        if (checkAck(in) != 0) {
+            System.exit(0);
+        }
+        out.close();
+
+        try {
+            if (fis != null) fis.close();
+        } catch (Exception ex) {
+            System.out.println(ex);
+        }
+
+        channel.disconnect();
+    }
+
+    public int checkAck(InputStream in) throws IOException {
+        int b = in.read();
+        // b may be 0 for success,
+        //          1 for error,
+        //          2 for fatal error,
+        //         -1
+        if (b == 0) return b;
+        if (b == -1) return b;
+
+        if (b == 1 || b == 2) {
+            StringBuffer sb = new StringBuffer();
+            int c;
+            do {
+                c = in.read();
+                sb.append((char) c);
+            }
+            while (c != '\n');
+            if (b == 1) { // error
+                System.out.print(sb.toString());
+            }
+            if (b == 2) { // fatal error
+                System.out.print(sb.toString());
+            }
+        }
+        return b;
+    }
+
+    private void copyRemoteToLocal(String from, String to, String fileName) throws JSchException, IOException {
+        from = from + File.separator + fileName;
+        String prefix = null;
+
+        if (new File(to).isDirectory()) {
+            prefix = to + File.separator;
+        }
+
+        // exec 'scp -f rfile' remotely
+        String command = "scp -f " + from;
+        Channel channel = session.openChannel("exec");
+        ((ChannelExec) channel).setCommand(command);
+
+        // get I/O streams for remote scp
+        OutputStream out = channel.getOutputStream();
+        InputStream in = channel.getInputStream();
+
+        channel.connect();
+
+        byte[] buf = new byte[1024];
+
+        // send '\0'
+        buf[0] = 0;
+        out.write(buf, 0, 1);
+        out.flush();
+
+        while (true) {
+            int c = checkAck(in);
+            if (c != 'C') {
+                break;
+            }
+
+            // read '0644 '
+            in.read(buf, 0, 5);
+
+            long filesize = 0L;
+            while (true) {
+                if (in.read(buf, 0, 1) < 0) {
+                    // error
+                    break;
+                }
+                if (buf[0] == ' ') break;
+                filesize = filesize * 10L + (long) (buf[0] - '0');
+            }
+
+            String file = null;
+            for (int i = 0; ; i++) {
+                in.read(buf, i, 1);
+                if (buf[i] == (byte) 0x0a) {
+                    file = new String(buf, 0, i);
+                    break;
+                }
+            }
+
+            System.out.println("file-size=" + filesize + ", file=" + file);
+
+            // send '\0'
+            buf[0] = 0;
+            out.write(buf, 0, 1);
+            out.flush();
+
+            // read a content of lfile
+            FileOutputStream fos = new FileOutputStream(prefix == null ? to : prefix + file);
+            int foo;
+            while (true) {
+                if (buf.length < filesize) foo = buf.length;
+                else foo = (int) filesize;
+                foo = in.read(buf, 0, foo);
+                if (foo < 0) {
+                    // error
+                    break;
+                }
+                fos.write(buf, 0, foo);
+                filesize -= foo;
+                if (filesize == 0L) break;
+            }
+
+            if (checkAck(in) != 0) {
+                System.exit(0);
+            }
+
+            // send '\0'
+            buf[0] = 0;
+            out.write(buf, 0, 1);
+            out.flush();
+
+            try {
+                if (fos != null) fos.close();
+            } catch (Exception ex) {
+                System.out.println(ex);
+            }
+        }
+
+        channel.disconnect();
+        //session.disconnect();
     }
 
     public User registerUser(UserDTO userDTO, String password) {

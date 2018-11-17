@@ -12,9 +12,9 @@ public class JSchConfig {
     @Bean
     public Session session() throws JSchException {
 
-        String host = "192.168.10.179";
+        String host = "103.7.129.174";
         String user = "matellio";
-        String password = "matellio";
+        String password = "cgtjaipur123";
         //String command1="scl enable rh-python36 'python $MED/medblocks.py createuser -n kapila -p 7894567891 -e kapila@gmail.com -o $MED/kapila.json'";
 
         java.util.Properties config = new java.util.Properties();

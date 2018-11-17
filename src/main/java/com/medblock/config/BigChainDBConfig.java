@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class BigChainDBConfig {
 
-    @Bean
+    /*@Bean
     public boolean configureBigChainDB() {
         BigchainDbConfigBuilder
             .baseUrl("https://test.bigchaindb.com") //or use http://testnet.bigchaindb.com
@@ -15,5 +15,5 @@ public class BigChainDBConfig {
             .addToken("app_key", "6f108c571fcb25c4d34056bede9d246f").setup();
 
         return true;
-    }
+    }*/
 }

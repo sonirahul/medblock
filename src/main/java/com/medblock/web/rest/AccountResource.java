@@ -2,6 +2,8 @@ package com.medblock.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jcraft.jsch.JSchException;
 import com.medblock.domain.User;
 import com.medblock.repository.UserRepository;
 import com.medblock.security.SecurityUtils;
@@ -10,21 +12,25 @@ import com.medblock.service.UserService;
 import com.medblock.service.dto.PasswordChangeDTO;
 import com.medblock.service.dto.UserDTO;
 import com.medblock.web.rest.errors.*;
-import com.medblock.web.rest.vm.KeyAndPasswordVM;
-import com.medblock.web.rest.vm.ManagedUserVM;
+import com.medblock.web.rest.vm.*;
 
-import com.medblock.web.rest.vm.SignUpVM;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.*;
 import com.jcraft.jsch.Session;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * REST controller for managing the current user's account.
@@ -79,10 +85,78 @@ public class AccountResource {
     @PostMapping("/login")
     @Timed
     @ResponseStatus(HttpStatus.OK)
-    public boolean login(@Valid @RequestBody String key) throws UnsupportedEncodingException {
+    public LoginResponseVM login(@Valid @RequestBody SignUpVM signUpVM) throws UnsupportedEncodingException {
 
-        return userService.login(key);
+        return userService.login(signUpVM.getKey());
         //mailService.sendActivationEmail(user);
+    }
+
+    @PostMapping("/add")
+    @Timed
+    @ResponseStatus(HttpStatus.OK)
+    public AddFileDTO add(@RequestParam("data") String data, @RequestParam(value = "file") MultipartFile file) throws IOException, JSchException, InterruptedException {
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        AddFileDTO addFileDTO = mapper.readValue(data, AddFileDTO.class);
+        return userService.addFile(file, addFileDTO);
+    }
+
+
+    @PostMapping("/list-docs")
+    @Timed
+    @ResponseStatus(HttpStatus.OK)
+    public List<GetFilesVM> getFiles(@Valid @RequestBody SignUpVM signUpVM) throws IOException, JSchException, InterruptedException {
+
+
+        return userService.getAllFiles(signUpVM.getKey(), signUpVM.getPhone());
+
+    }
+
+    @PostMapping("/download-doc")
+    @Timed
+    @ResponseStatus(HttpStatus.OK)
+    public List<GetFilesVM> getFile(@Valid @RequestBody GetFileVm filevm) throws IOException, JSchException, InterruptedException {
+
+
+        return userService.downLoadFile(filevm.getKey(), filevm.getFileId());
+
+    }
+
+    @PostMapping("/permit")
+    @Timed
+    @ResponseStatus(HttpStatus.OK)
+    public void getFile(@Valid @RequestBody PermitVM permitVM) throws IOException, JSchException, InterruptedException {
+
+
+        userService.permit(permitVM);
+
+    }
+
+
+
+    @GetMapping("/downloadFile/{fileName:.+}")
+    public ResponseEntity<Resource> downloadFile(@PathVariable String fileName, HttpServletRequest request) {
+        // Load file as Resource
+        Resource resource = userService.loadFileAsResource(fileName);
+
+        // Try to determine file's content type
+        String contentType = null;
+        try {
+            contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath());
+        } catch (IOException ex) {
+            log.info("Could not determine file type.");
+        }
+
+        // Fallback to the default content type if type could not be determined
+        if(contentType == null) {
+            contentType = "application/jpeg";
+        }
+
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(contentType))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + resource.getFilename())
+            .body(resource);
     }
 
     /**

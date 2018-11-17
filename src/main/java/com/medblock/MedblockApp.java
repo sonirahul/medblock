@@ -3,6 +3,7 @@ package com.medblock;
 import com.medblock.config.ApplicationProperties;
 import com.medblock.config.DefaultProfileUtil;
 
+import com.medblock.config.FileStorageProperties;
 import io.github.jhipster.config.JHipsterConstants;
 
 import org.apache.commons.lang3.StringUtils;
@@ -20,7 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 @SpringBootApplication
-@EnableConfigurationProperties({ApplicationProperties.class})
+@EnableConfigurationProperties({ApplicationProperties.class, FileStorageProperties.class})
 public class MedblockApp {
 
     private static final Logger log = LoggerFactory.getLogger(MedblockApp.class);
