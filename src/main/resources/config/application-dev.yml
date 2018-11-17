@@ -35,7 +35,7 @@ spring:
         serialization.indent_output: true
     data:
         mongodb:
-            uri: mongodb://localhost:27017
+            uri: mongodb+srv://muferral-dev-admin:Ga5QsCEqoDGnqPiO@cluster0-s3cot.mongodb.net/MuferralGateway
             database: medblock
     mail:
         host: localhost
