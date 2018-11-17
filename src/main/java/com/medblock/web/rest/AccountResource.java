@@ -116,7 +116,7 @@ public class AccountResource {
     @PostMapping("/download-doc")
     @Timed
     @ResponseStatus(HttpStatus.OK)
-    public List<GetFilesVM> getFile(@Valid @RequestBody GetFileVm filevm) throws IOException, JSchException, InterruptedException {
+    public GetFileVm getFile(@Valid @RequestBody GetFileVm filevm) throws IOException, JSchException, InterruptedException {
 
 
         return userService.downLoadFile(filevm.getKey(), filevm.getFileId());
@@ -126,11 +126,10 @@ public class AccountResource {
     @PostMapping("/permit")
     @Timed
     @ResponseStatus(HttpStatus.OK)
-    public void getFile(@Valid @RequestBody PermitVM permitVM) throws IOException, JSchException, InterruptedException {
+    public boolean getFile(@Valid @RequestBody PermitVM permitVM) throws IOException, JSchException, InterruptedException {
 
 
-        userService.permit(permitVM);
-
+        return userService.permit(permitVM);
     }
 
 

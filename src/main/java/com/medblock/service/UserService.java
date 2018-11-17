@@ -19,6 +19,7 @@ import com.medblock.service.util.RandomUtil;
 import com.medblock.web.rest.errors.*;
 
 import com.medblock.web.rest.vm.*;
+import org.apache.commons.io.FileUtils;
 import org.omg.SendingContext.RunTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -232,7 +233,7 @@ public class UserService {
         return list;
     }
 
-    public List<GetFilesVM> downLoadFile(String key, String fileId) throws InterruptedException, IOException, JSchException {
+    public GetFileVm downLoadFile(String key, String fileId) throws InterruptedException, IOException, JSchException {
 
 
         String command = "scl enable rh-python36 'python $MED/medblocks.py get" +
@@ -242,9 +243,29 @@ public class UserService {
         String output = executeCommand(command);
         String[] outLines = output.split("\n");
 
-        copyRemoteToLocal("/home/matellio",
-            "/Users/rahul/development/project/blockchain_proj/medblock_java/src/main/webapp/content/downloaded", fileId + ".json");
-        return null;
+        String fileName = fileId;
+        String originalFileName = fileId;
+        Optional<FileAssets> fileAssetsDB = fileAssetsRepository.findById(fileId);
+        if (fileAssetsRepository.findById(fileId).isPresent()) {
+            originalFileName = fileAssetsDB.get().getFileName();
+            if (fileAssetsDB.get().getFileName().split("\\.").length == 2) {
+                fileName = fileId + "." + fileAssetsDB.get().getFileName().split("\\.")[1];
+            }
+        }
+
+        copyRemoteToLocal("/home/matellio/rahul/medblocks",
+            fileStorageLocation.toString(), fileName);
+
+        GetFileVm vm = new GetFileVm();
+        vm.setFileName(fileName);
+        return vm;
+        /*byte[] fileContent = FileUtils.readFileToByteArray(new File(fileStorageLocation.toString() + "/" + fileName));
+        String encodedString = Base64.getEncoder().encodeToString(fileContent);
+
+        DownLoadFileVM vm = new DownLoadFileVM();
+        vm.setFileEncoded(encodedString);
+        vm.setFileName(originalFileName);*/
+        //return vm;
     }
 
     public Resource loadFileAsResource(String fileName) {
@@ -288,7 +309,8 @@ public class UserService {
         copyLocalToRemote(this.fileStorageLocation.toString(),
             "/home/matellio/rahul/medblocks", file.getOriginalFilename());
 
-        String command = "scl enable rh-python36 'python $MED/medblocks.py add /home/matellio/rahul/medblocks/proxy.conf.json" +
+        String command = "scl enable rh-python36 'python $MED/medblocks.py add " +
+            "/home/matellio/rahul/medblocks/" + file.getOriginalFilename() +
             " -p " + addFileDTO.getPhoneNumber() +
             " -c " + addFileDTO.getKey() + "'";
         Thread.sleep(10000);
@@ -319,14 +341,16 @@ public class UserService {
         return addFileDTO;
     }
 
-    public void permit(PermitVM permitVM) throws InterruptedException {
+    public boolean permit(PermitVM permitVM) throws InterruptedException {
 
         String command = "scl enable rh-python36 'python $MED/medblocks.py permit" +
             " -as " + permitVM.getFileId() +
             " -c " + permitVM.getKey() +
             " -p " + permitVM.getPhone() + "'";
         Thread.sleep(10000);
-        String output = executeCommand(command).trim();
+        executeCommand(command).trim();
+
+        return true;
         /*String[] out = output.split("\n");
 
         for (String itr : out) {
