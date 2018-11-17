@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class IPFSConfig {
 
-    @Bean
+    /*@Bean
     public IPFS ipfs() {
         return new IPFS("/ip4/127.0.0.1/tcp/5001");
-    }
+    }*/
 }

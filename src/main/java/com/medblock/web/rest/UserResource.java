@@ -73,8 +73,8 @@ public class UserResource {
 
     private final MailService mailService;
 
-    @Autowired
-    private IPFS ipfs;
+    /*@Autowired
+    private IPFS ipfs;*/
 
     public UserResource(UserService userService, UserRepository userRepository, MailService mailService) {
 
@@ -198,11 +198,11 @@ public class UserResource {
         return ResponseEntity.ok().headers(HeaderUtil.createAlert( "userManagement.deleted", login)).build();
     }
 
-    @PostMapping("/user/upload-file")
+    /*@PostMapping("/user/upload-file")
     public String putByte(@RequestPart MultipartFile file) throws IOException {
         NamedStreamable.ByteArrayWrapper fileWrapper = new NamedStreamable.ByteArrayWrapper(file.getBytes());//"hello.txt", "G'day world! IPFS rocks!".getBytes()
         MerkleNode addResult = ipfs.add(fileWrapper).get(0);
         log.info("IpfsService put() result: " + addResult.toJSONString());
         return addResult.toJSONString();
-    }
+    }*/
 }
